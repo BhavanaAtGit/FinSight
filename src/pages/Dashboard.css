@@ -1,0 +1,31 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .dashboard-container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+  
+  .chart-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+  }
+  
+  .table-container {
+    height: 400px;
+    width: 100%;
+  }
+  
+  .dropdown {
+    margin-bottom: 20px;
+  }
+  
