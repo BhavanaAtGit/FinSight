@@ -4,9 +4,14 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import logging
+from dotenv import load_dotenv
+import os
 
 app = Flask(__name__)
 CORS(app)
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -24,7 +29,7 @@ def scrape_news():
         soup = BeautifulSoup(response.text, 'html.parser')
 
         news_items = []
-        articles = soup.select('li.clearfix')[:12]  # Limit to 10 recent articles
+        articles = soup.select('li.clearfix')[:12]  # Limit to 12 recent articles
 
         for article in articles:
             title_elem = article.select_one('h2 a')

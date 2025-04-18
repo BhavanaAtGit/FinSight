@@ -1,5 +1,3 @@
-# scraping moneycontrol websites
-
 from flask import Flask, jsonify, request
 import requests
 from bs4 import BeautifulSoup
@@ -16,12 +14,17 @@ import os
 import re
 from flask_cors import CORS
 import google.generativeai as genai
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 CORS(app)
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Serper API details
 SERPER_API_URL = "https://google.serper.dev/search"
-SERPER_API_KEY = "505c4dc550fc8ca51646db77ad6a4ffad8e7163c"
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "default_key_if_missing")
 
 # Financial document types to search for
 financial_documents = [
@@ -68,10 +71,8 @@ def clean_numeric_data(df):
 def extract_table_data(driver, url):
     """Extract main table data from the page with multiple parsing attempts"""
     try:
-        # Wait for the page to load
         time.sleep(3)  # Add a small delay to ensure content loads
         
-        # Try multiple table class names that might exist
         table_classes = ['mctable1', 'table4', 'table']
         
         for class_name in table_classes:
@@ -80,26 +81,18 @@ def extract_table_data(driver, url):
                     EC.presence_of_element_located((By.CLASS_NAME, class_name))
                 )
                 
-                # Get page source and create soup
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
                 
-                # Try finding tables with different methods
                 tables = []
-                
-                # Method 1: Direct class search
                 main_table = soup.find('table', class_=class_name)
                 if main_table:
                     tables.append(main_table)
-                
-                # Method 2: Find all tables and process
                 all_tables = soup.find_all('table')
                 if all_tables:
                     tables.extend(all_tables)
                 
-                # Process found tables
                 for table in tables:
                     try:
-                        # Try multiple parsers
                         parsers = ['lxml', 'html5lib', 'html.parser']
                         for parser in parsers:
                             try:
@@ -116,7 +109,6 @@ def extract_table_data(driver, url):
             except Exception:
                 continue
         
-        # If no tables found with class names, try getting any table
         try:
             dfs = pd.read_html(driver.page_source)
             if dfs:
@@ -175,43 +167,30 @@ def process_company_financials(company_name):
         
     return all_data
 
-import pandas as pd
-import re
-
 def generate_financial_data_dict(company_name, financial_data):
     """Generate a dictionary of CSV-like DataFrames for use in the prompt."""
     try:
-        # Ensure financial_data is valid
         if not financial_data or not isinstance(financial_data, dict):
             print(f"Warning: No valid financial data found for {company_name}.")
             return {}
 
         financial_data_dict = {}
 
-        # Process each sheet and convert it to a cleaned DataFrame
         for doc_type, data in financial_data.items():
             if isinstance(data, pd.DataFrame) and not data.empty:
-                data = data.copy()  # Prevent modifying the original DataFrame
-                
-                # Convert numeric values (if needed)
+                data = data.copy()
                 data = clean_numeric_data(data)
-                
-                # Ensure valid dictionary keys (avoid invalid characters in sheet names)
                 sheet_name = re.sub(r'[^a-zA-Z0-9_]', '_', doc_type[:31])
-                
-                # Store the cleaned DataFrame
                 financial_data_dict[sheet_name] = data
 
         print(f"\n✅ Successfully processed financial data into dictionary for {company_name}.")
-
-        return financial_data_dict  # Return the final processed dictionary
+        return financial_data_dict
     
     except Exception as e:
         print(f"❌ Error processing data into dictionary: {e}")
         return {}
 
-
-genai.configure(api_key="AIzaSyDnoG9oV3vq339P_3-WZRdMxA-8T9Uazsk")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", "default_key_if_missing"))
 
 def generate_analysis_with_gemini(prompt):
     """Send financial analysis prompt to Gemini Pro and get the response."""
@@ -222,11 +201,8 @@ def generate_analysis_with_gemini(prompt):
     except Exception as e:
         return f"Error: {e}"
 
-
-
 def generate_financial_analysis_prompt(financial_data):
     """Generate a structured prompt for financial analysis."""
-    
     data_sections = ""
     for doc_type, data in financial_data.items():
         data_summary = data.describe(include='all').to_string()
@@ -236,7 +212,7 @@ def generate_financial_analysis_prompt(financial_data):
     ### **Financial Analysis Prompt**  
     
     As a **Financial Analyst and AI expert**, provide a **comprehensive analysis** of the company based on the following financial data. **Focus on key insights, trends, and strategic recommendations.**  
-     ### **Financial Data:**  
+    ### **Financial Data:**  
     {data_sections}
     Give me a final output of the stock narratives with probabilistic consistency in correspondence to below data.
     the answers should be backed by numeric data.
@@ -296,8 +272,6 @@ def generate_financial_analysis_prompt(financial_data):
     """
     return prompt
 
-
-
 @app.route('/analyze', methods=['GET'])
 def analyze():
     """API endpoint to analyze financial data for a company"""
@@ -305,44 +279,11 @@ def analyze():
     financial_data = process_company_financials(company_name)
     financial_data_dict = generate_financial_data_dict(company_name, financial_data)
     prompt = generate_financial_analysis_prompt(financial_data_dict)
-    prompt1 = generate_analysis_with_gemini(prompt)
+    analysis = generate_analysis_with_gemini(prompt)
     return jsonify({
         "company_name": company_name,
-        "prompt1": prompt1,
+        "analysis": analysis,
     })
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-from flask import Flask, jsonify
-import pandas as pd
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)  # Allow frontend to access backend
-
-# Load the Excel file
-file_path = "Zomato_financial_data.xlsx"
-xls = pd.ExcelFile(file_path)
-
-def get_cleaned_data(sheet_name):
-    df = xls.parse(sheet_name)
-    df = df.dropna(how='all')  # Remove empty rows
-    df = df.fillna('')  # Replace NaN with empty string for JSON
-    return df.to_dict(orient='records')
-
-@app.route("/api/sheets", methods=["GET"])
-def get_sheets():
-    return jsonify({"sheets": xls.sheet_names})
-
-@app.route("/api/data/<sheet_name>", methods=["GET"])
-def get_sheet_data(sheet_name):
-    if sheet_name in xls.sheet_names:
-        data = get_cleaned_data(sheet_name)
-        return jsonify({"sheet": sheet_name, "data": data})
-    return jsonify({"error": "Sheet not found"}), 404
-
-if __name__ == "__main__":
-    app.run(debug=True,port=5000)

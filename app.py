@@ -1,16 +1,20 @@
-#ask me anything
-
 from flask import Flask, request, jsonify
 import os
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
-from flask_cors import CORS 
+from flask_cors import CORS
+from dotenv import load_dotenv
+
 app = Flask(__name__)
 CORS(app)
-# Set API keys
-SERPER_API_KEY = "505c4dc550fc8ca51646db77ad6a4ffad8e7163c"
-GEMINI_API_KEY = "AIzaSyDnoG9oV3vq339P_3-WZRdMxA-8T9Uazsk"
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Set API keys from environment variables
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "default_key_if_missing")  # Fallback for testing
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "default_key_if_missing")  # Fallback for testing
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -19,7 +23,7 @@ def get_prompt(text, summary_type="concise"):
     if summary_type == "concise":
         return f"Summarize the following article in a concise yet detailed way. {text}"
     elif summary_type == "overview":
-        return f"Provide an overview of the following article.everything should Only be related to stock market and buissness and answered {text}"
+        return f"Provide an overview of the following article.everything should Only be related to stock market and business and answered {text}"
     else:
         return f"Summarize the following article in a way that highlights detailed information. {text}"
 
@@ -87,4 +91,4 @@ def search():
         return jsonify({"error": "No relevant content found."})
 
 if __name__ == '__main__':
-    app.run(debug=True,port=5002)
+    app.run(debug=True, port=5002)
